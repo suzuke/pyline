@@ -16,13 +16,17 @@ from pyline.messages import *
 channelToken = ''
 channelSecret = ''
 
-lineClient = LineClient(channelToken)
+lineClient = LineClient(channelToken, channelSecret)
 app = Flask(__name__)
 
 @app.route('/callback', methods=['POST'])
 def handleCallback():
-    eventRequestHandler = EventRequestHandler(request, channelSecret)
-    events = eventRequestHandler.getEvents()
+    try:
+        events = lineClient.parseEventRequest(request)
+    except Exception, arg:
+        print 'Error: ', arg
+        abort(400)
+
     for event in events:
         message = event.getMessage()
         messageType = message.getType()
@@ -35,7 +39,7 @@ def handleCallback():
             msg = StickerMsg(message.getPackageId(), message.getStickerId())
             lineClient.pushMessage(event.getId(), msg)
 
-    return ''
+    return '', 200
 
 if __name__ == "__main__":
     app.run()

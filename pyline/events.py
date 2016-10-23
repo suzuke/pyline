@@ -9,9 +9,6 @@
 
 import json
 import sys
-import base64
-import hashlib
-import hmac
 
 class SourceHandler(object):
     def __init__(self, source):
@@ -49,12 +46,9 @@ class RoomSource(BaseSource):
         return self.source["roomId"]
 
 
-class EventRequestHandler(object):
-    def __init__(self, request, channelSecret=""):
-        self.signature = request.headers.get("X-Line-Signature")
-        self.data = request.get_data()
-        self.events = json.loads(self.data)["events"]
-        self.channelSecret = channelSecret
+class EventHandler(object):
+    def __init__(self, payload):
+        self.events = json.loads(payload)["events"]
         self.eventDict = {
                 'message' : 'MessageEvent',
                 'follow' : 'FollowEvent',
@@ -65,39 +59,11 @@ class EventRequestHandler(object):
                 'beacon' : 'BeaconEvent'
                 }
 
-    def __validateSignature(self):
-        if self.channelSecret == "":
-            return True
-
-        return self.__compare_digest(
-                self.signature.encode('utf-8'),
-                base64.b64encode(
-                    hmac.new(
-                        self.channelSecret.encode('utf-8'),
-                        msg=self.data,
-                        digestmod=hashlib.sha256
-                        ).digest()
-                    )
-                )
-    def __compare_digest(self, a, b):
-        """Time-constant comparison. Less secure than hmac.compare_digest
-        See http://legacy.python.org/dev/peps/pep-0466/
-        """
-        if len(a) != len(b):
-            return False
-        flag = 0
-        for x, y in zip(a, b):
-            flag |= ord(x) ^ ord(y)
-        return flag == 0
-
     def getEvents(self):
         events = []
-        if self.__validateSignature():
-            for event in self.events:
-                eventObj =  getattr(sys.modules[__name__], str(self.eventDict.get(event["type"])))
-                events.append(eventObj(event))
-        else:
-            print "Failed to validate signature, ignore all events."
+        for event in self.events:
+            eventObj =  getattr(sys.modules[__name__], str(self.eventDict.get(event["type"])))
+            events.append(eventObj(event))
         return events
 
 class BaseEvent(object):
